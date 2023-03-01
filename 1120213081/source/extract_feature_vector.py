@@ -21,6 +21,7 @@ corpus_line = corpus_data.readline()
 x = []
 
 i = 0
+f = open("evFrequentWords.txt", "a")
 while True:
     if train_line == "":
         break
@@ -44,19 +45,23 @@ while True:
                                 flag = True
                                 break
                     if flag:
-                        x[i].append(1) # 这里如果有字典中没有出现的词，我们就将第一维记为1，否则记为0
+                        f.write("1 ")
+                        # x[i].append(1) # 这里如果有字典中没有出现的词，我们就将第一维记为1，否则记为0
                         j = j + 1
                         break
             if not flag:
-                x[i].append(0)
-                j = j + 1
+                f.write("0 ")
+                # x[i].append(0)
+                # j = j + 1
             # 这个是用词典在对原句子中的词做搜索循环,对5000维做判断
             for w in words:
                 if w in corpus_line:
                     x[i].append(1)
+                    f.write("1 ")
                     j = j + 1
                 else:
                     x[i].append(0)
+                    f.write("0 ")
                     j = j + 1
             i = i + 1
             print(j)
@@ -64,10 +69,7 @@ while True:
             corpus_line = corpus_data.readline()
         else:
             corpus_line = corpus_data.readline()
-
-f = open("evFrequentWords.txt", "w")
-f.write(str(x))
-print(x)
+        f.write('\n')
 
 f.close()
 train_data.close()
