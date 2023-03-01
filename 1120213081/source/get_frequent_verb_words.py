@@ -31,7 +31,7 @@ while True:
             words = corpus_line.split(' ')  # 将读入的原始语料使用空格进行分割
             # 找动词
             for w in words:
-                if "/vt" in w:
+                if "/a" in w or "/vt" in w or "/vn" in w or "/vi" in w:
                     splitWord = ""
                     for c in w:
                         splitWord = splitWord + c
@@ -41,15 +41,15 @@ while True:
                     vtdict[w] = vtdict.get(w, 0) + 1
 
             # 找形容词
-            for w in words:
-                if "/a" in w:
-                    splitWord = ""
-                    for c in w:
-                        splitWord = splitWord + c
-                        if c == '/' or c == '{':
-                            w = splitWord[:-1]
-                            break
-                    adict[w] = adict.get(w, 0) + 1
+            # for w in words:
+            #     if "/a" in w:
+            #         splitWord = ""
+            #         for c in w:
+            #             splitWord = splitWord + c
+            #             if c == '/' or c == '{':
+            #                 w = splitWord[:-1]
+            #                 break
+            #         adict[w] = adict.get(w, 0) + 1
 
             train_line = train_data.readline()
             corpus_line = corpus_data.readline()
@@ -59,16 +59,20 @@ while True:
 train_data.close()
 corpus_data.close()
 
-sortedVtDict = sortedDictValues(vtdict)
-sortedADict = sortedDictValues(adict)
+resDict = {}
+
+resDict.update(vtdict)
+resDict.update(adict)
+
+sortedDict = sortedDictValues(resDict)
 # 分别选择频率高的词汇到词库里
 f = open("frequentWords.txt", "w")
 
-for i in range(0, VERB_NUM):
-    f.write(sortedVtDict[i][0])
+for i in range(0, 5000):
+    f.write(sortedDict[i][0])
     f.write('\n')
-for i in range(0, ADJ_NUM):
-    f.write(sortedADict[i][0])
-    f.write('\n')
+# for i in range(0, ADJ_NUM):
+#     f.write(sortedADict[i][0])
+#     f.write('\n')
 
 f.close()
