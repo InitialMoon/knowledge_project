@@ -29,7 +29,7 @@ while True:
         if train_line[0:PREFIX_NUM] == corpus_line[0:PREFIX_NUM]:
             i = i + 1
             words = corpus_line.split(' ')  # 将读入的原始语料使用空格进行分割
-            # 找动词
+            # 找动词,和形容词
             for w in words:
                 if "/a" in w or "/vt" in w or "/vn" in w or "/vi" in w:
                     splitWord = ""
@@ -39,17 +39,6 @@ while True:
                             w = splitWord[:-1]
                             break
                     vtdict[w] = vtdict.get(w, 0) + 1
-
-            # 找形容词
-            # for w in words:
-            #     if "/a" in w:
-            #         splitWord = ""
-            #         for c in w:
-            #             splitWord = splitWord + c
-            #             if c == '/' or c == '{':
-            #                 w = splitWord[:-1]
-            #                 break
-            #         adict[w] = adict.get(w, 0) + 1
 
             train_line = train_data.readline()
             corpus_line = corpus_data.readline()
@@ -71,8 +60,5 @@ f = open("frequentWords.txt", "w")
 for i in range(0, 5000):
     f.write(sortedDict[i][0])
     f.write('\n')
-# for i in range(0, ADJ_NUM):
-#     f.write(sortedADict[i][0])
-#     f.write('\n')
 
 f.close()
