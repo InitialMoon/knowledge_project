@@ -74,24 +74,27 @@ def func_g(x):
     return 1 / (1 + torch.exp(-x))
 
 
-# input: x and y, x is a Matrix of input data, y is a vector of result
-# output: parameter vector theta
-def batch_gradient_hand(x, y, sample_num):
+# input : x is a 2D list, y is a 1D tensor on CPU, step_rate is the step length, is_tensor_cal decide use for or matrix
+# output : loss_function list, which record the value of the value by iterator
+#          theta_list, which record the theta by iterator, every model is in this
+def batch_gradient_hand(x, y, step_rate, iterator_times):
+    loss = []
+    theta_list = []
+    tensor_x = torch.as_tensor(x, dtype=torch.float).to(GPU)
+    tensor_y = torch.as_tensor(y, dtype=torch.float).to(GPU)
     theta = torch.zeros(5001).to(GPU)
-    grad = 0.0
-    for i in range(sample_num):
-        a = torch.dot(theta.T, x[(i + 1):(i + 2), :])
-        print(a)
-        b = y - func_g(a)
-        print(b)
-        c = b * x[(i + 1):(i + 2), :]
-        print(c)
-        grad = grad + (y - func_g(theta.T * x[(i + 1):(i + 2), :])) * x[(i + 1):(i + 2), :]
+    for j in range(iterator_times):
+        grad = (torch.mv(tensor_x.T, (tensor_y - func_g(torch.mv(tensor_x, theta)))))
+        alpha = random.random() * step_rate
+        theta = theta + alpha * grad
+        theta_list.append(theta)
+        log_l_theta = (tensor_y * torch.log10(func_g(torch.mv(tensor_x, theta))) - (tensor_y - 1) * torch.log10(
+            (1 - func_g(torch.mv(tensor_x, theta))))).sum()
 
-    alpha = random.random() / 10
-    theta = theta + alpha * grad
+        loss.append(float(log_l_theta))
+        theta_list.append(theta)
 
-    return theta
+    return loss, theta_list
 
 
 # input : x is a 2D list, y is a 1D tensor on CPU, step_rate is the step length, is_tensor_cal decide use for or matrix
@@ -346,7 +349,8 @@ test_y1_list, test_y2_list = y_transform_to_tensor(TEST_Y_PATH)
 
 T1 = time.time()
 
-loss1_list1, model11 = random_gradient_auto(train_x_list, train_y1_list, STEP, 60000, 100, True)
+loss1_list1, model11 = batch_gradient_hand(train_x_list, train_y1_list, STEP, 2000)
+# loss1_list1, model11 = random_gradient_auto(train_x_list, train_y1_list, STEP, 60000, 100, True)
 # loss1_list1, model11 = batch_gradient_auto(train_x_list, train_y1_list, STEP, 6000, True)
 T2 = time.time()
 
