@@ -1,6 +1,5 @@
-#-*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 
-from matplotlib.font_manager import FontProperties
 import torch
 
 import random
@@ -15,6 +14,7 @@ VALID_Y_PATH = '../../../data/validation.txt'
 VALID_X_PATH = './valid_x.txt'
 TEST_Y_PATH = '../../../data/test.txt'
 TEST_X_PATH = './test_x.txt'
+STEP = 1 / 1000
 
 # 引入GPU
 GPU = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -113,7 +113,70 @@ def batch_gradient_auto(x, y, step_rate, iterator_times, is_tensor_cal):
             log_l_theta.backward()
             loss.append(float(log_l_theta))
             # 随机生成的步长
+            alpha = step_rate * random.random()
+            # 这里又变成cpu了，注意
+            grad = theta_cpu.grad
+            # 参与运算的子叶结点不接受数据更改，虽然已经正确算出来了，但是不能直接用,或许我们能现将子叶的跟踪停止下来，因为，再下一次计算与这次没
+            # 有任何关系了，先把requires关闭了试试
+            # print(theta_gpu.is_leaf)
+            # print(theta_cpu.is_leaf)
+            theta_cpu.requires_grad_(False)
+            theta_cpu += alpha * grad
+            theta_cpu.requires_grad_(True)
+            theta_gpu = theta_cpu.to(GPU)
+            theta_cpu.grad.zero_()
+            theta_list.append(theta_gpu)
+            # print(j)
+            # print(theta_gpu)
+            # print(log_l_theta)
+    else:
+        sample_num = tensor_x.shape[0]
+        # 利用for循环进行所有样本的计算
+        for j in range(iterator_times):
+            log_l_theta = 0.0
+            for i in range(sample_num):
+                vxi = torch.tensor(x[i], dtype=torch.float).to(GPU)
+                yi = float(y[i])
+                a = func_g(torch.dot(theta_gpu, vxi))
+                log_l_theta += (yi * torch.log10(a) + (1 - yi) * torch.log10(1 - a))
+
+            # 每次下降的梯度
+            # grad_1 = torch.autograd.grad(log_l_theta, theta_gpu, create_graph=True)[0]
+            log_l_theta.backward()
+            grad = theta_cpu.grad
+            loss.append(float(log_l_theta))
             alpha = step_rate * random.random() / 1000
+
+            theta_cpu.requires_grad_(False)
+            theta_cpu += alpha * grad
+            theta_cpu.requires_grad_(True)
+            theta_gpu = theta_cpu.to(GPU)
+            theta_cpu.grad.zero_()
+            theta_list.append(theta_gpu)
+
+    return loss, theta_list
+
+
+def random_gradient_auto(x, y, step_rate, iterator_times, every_num, is_tensor_cal):
+    loss = []
+    theta_list = []
+    # 注意这里要是不追踪放置到gpu上的张量的话，自动求导的时候就无法追踪到，因为子叶结点已经更换了
+    theta_cpu = torch.zeros(5001, dtype=torch.float, requires_grad=True)
+    theta_gpu = theta_cpu.to(GPU)
+    tensor_x = torch.as_tensor(x, dtype=torch.float).to(GPU)
+    tensor_y = torch.as_tensor(y, dtype=torch.float).to(GPU)
+    if is_tensor_cal:
+        # 利用矩阵进行所有样本的计算
+        for j in range(iterator_times):
+            index = torch.LongTensor(random.sample(range(tensor_y.shape[0]), every_num)).to(GPU)
+            r_tensor_x = torch.index_select(tensor_x, 0, index)
+            r_tensor_y = torch.index_select(tensor_y, 0, index)
+            log_l_theta = (r_tensor_y * torch.log10(func_g(torch.mv(r_tensor_x, theta_gpu))) - (r_tensor_y - 1) * torch.log10(
+                (1 - func_g(torch.mv(r_tensor_x, theta_gpu))))).sum()
+            log_l_theta.backward()
+            loss.append(float(log_l_theta))
+            # 随机生成的步长
+            alpha = step_rate * random.random()
             # 这里又变成cpu了，注意
             grad = theta_cpu.grad
             # 参与运算的子叶结点不接受数据更改，虽然已经正确算出来了，但是不能直接用,或许我们能现将子叶的跟踪停止下来，因为，再下一次计算与这次没
@@ -243,23 +306,29 @@ def f1_measure(model_list, test_x, test_y):
 
 # input : a value list
 # output : a graph
-def draw_single_line(name, y):
+def draw_single_line(name, y, xlab, ylab, step):
     plt.rcParams['font.sans-serif'] = ['SimHei']  # 用来正常显示中文标签
     axis_x = list(range(0, len(y), 1))
     plt.plot(axis_x, y, label=name)
-    plt.legend(loc="down right")
+    plt.legend(loc="lower right")
+    plt.xlabel(xlab)  # x轴坐标名称及字体样式
+    plt.ylabel(ylab)  # y轴坐标名称及字体样式
+    plt.text(0, 1, "步长是" + str(step), fontsize=10)  # 在图中添加文本
     plt.show()
 
 
 # input : 2 value lists
 # output : a graph
-def draw_lines(name1, y1, name2, y2, name3, y3):
+def draw_lines(name1, y1, name2, y2, name3, y3, xlab, ylab, step):
     axis_x = list(range(0, len(y1), 1))
     plt.rcParams['font.sans-serif'] = ['SimHei']  # 用来正常显示中文标签
     plt.plot(axis_x, y1, label=name1)
     plt.plot(axis_x, y2, label=name2)
     plt.plot(axis_x, y3, label=name3)
-    plt.legend(loc="down right")
+    plt.legend(loc="lower right")
+    plt.text(0, 1, "步长是" + str(step), fontsize=10)  # 在图中添加文本
+    plt.xlabel(xlab)  # x轴坐标名称及字体样式
+    plt.ylabel(ylab)  # y轴坐标名称及字体样式
     plt.show()
 
 
@@ -275,30 +344,24 @@ train_y1_list, train_y2_list = y_transform_to_tensor(TRAIN_Y_PATH)
 valid_y1_list, valid_y2_list = y_transform_to_tensor(VALID_Y_PATH)
 test_y1_list, test_y2_list = y_transform_to_tensor(TEST_Y_PATH)
 
-# loss1_list, model1 = batch_gradient_auto(x_list[:-1], Matrix_y1)
 T1 = time.time()
 
-loss1_list1, model11 = batch_gradient_auto(train_x_list, train_y1_list, 1, 6000, True)
-
+loss1_list1, model11 = random_gradient_auto(train_x_list, train_y1_list, STEP, 60000, 100, True)
+# loss1_list1, model11 = batch_gradient_auto(train_x_list, train_y1_list, STEP, 6000, True)
 T2 = time.time()
-print('使用张量优化运算运行时间:%s毫秒' % ((T2 - T1)*1000))
 
 # recall, pre, f1m = f1_measure(model11, train_x_list, train_y1_list)
 recall, pre, f1m = f1_measure(model11, test_x_list, test_y1_list)
 
-draw_lines("查全率", recall, "准确率", pre, "F1", f1m)
-draw_single_line("F1", f1m)
-draw_single_line("准确率", pre)
-draw_single_line("查全率", recall)
+print('使用张量优化运算运行时间:%s毫秒' % ((T2 - T1) * 1000))
+
+draw_lines("查全率", recall, "准确率", pre, "F1", f1m, "迭代次数", "比率(%)", STEP)
+draw_single_line("F1", f1m, "迭代次数", "比率(%)", STEP)
+draw_single_line("准确率", pre, "迭代次数", "比率(%)", STEP)
+draw_single_line("查全率", recall, "迭代次数", "比率(%)", STEP)
 # T1 = time.time()
 #
 # loss1_list, model1 = batch_gradient_auto(train_x_list, train_y1_list, 1, 1000, False)
 #
 # T2 = time.time()
 # print('不使用张量优化运算运行时间:%s毫秒' % ((T2 - T1)*1000))
-
-# v_loss, m_loss, min_mod = calculate_loss(valid_x_list, valid_y1_list, model1)
-#
-# test_loss, t_m_loss, t_min_model = calculate_loss(test_x_list, test_y1_list, model1)
-
-# draw_lines(v_loss, test_loss, loss1_list)
