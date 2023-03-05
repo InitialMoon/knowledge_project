@@ -100,6 +100,32 @@ def batch_gradient_hand(x, y, step_rate, iterator_times):
 # input : x is a 2D list, y is a 1D tensor on CPU, step_rate is the step length, is_tensor_cal decide use for or matrix
 # output : loss_function list, which record the value of the value by iterator
 #          theta_list, which record the theta by iterator, every model is in this
+def random_gradient_hand(x, y, step_rate, iterator_times, every_num):
+    loss = []
+    theta_list = []
+    tensor_x = torch.as_tensor(x, dtype=torch.float).to(GPU)
+    tensor_y = torch.as_tensor(y, dtype=torch.float).to(GPU)
+    theta = torch.zeros(5001).to(GPU)
+    for j in range(iterator_times):
+        index = torch.LongTensor(random.sample(range(tensor_y.shape[0]), every_num)).to(GPU)
+        r_tensor_x = torch.index_select(tensor_x, 0, index)
+        r_tensor_y = torch.index_select(tensor_y, 0, index)
+        grad = (torch.mv(r_tensor_x.T, (r_tensor_y - func_g(torch.mv(r_tensor_x, theta)))))
+        alpha = random.random() * step_rate
+        theta = theta + alpha * grad
+        theta_list.append(theta)
+        log_l_theta = (r_tensor_y * torch.log10(func_g(torch.mv(r_tensor_x, theta))) - (r_tensor_y - 1) * torch.log10(
+            (1 - func_g(torch.mv(r_tensor_x, theta))))).sum()
+
+        loss.append(float(log_l_theta))
+        theta_list.append(theta)
+
+    return loss, theta_list
+
+
+# input : x is a 2D list, y is a 1D tensor on CPU, step_rate is the step length, is_tensor_cal decide use for or matrix
+# output : loss_function list, which record the value of the value by iterator
+#          theta_list, which record the theta by iterator, every model is in this
 def batch_gradient_auto(x, y, step_rate, iterator_times, is_tensor_cal):
     loss = []
     theta_list = []
@@ -228,8 +254,6 @@ def random_gradient_auto(x, y, step_rate, iterator_times, every_num, is_tensor_c
 #         min_loss
 def calculate_loss(x, y, model_list):
     validation_loss = []
-    print(x)
-    print(y)
     tensor_x = torch.as_tensor(x, dtype=torch.float).to(GPU)
     tensor_y = torch.as_tensor(y, dtype=torch.float).to(GPU)
     for model in model_list:
@@ -240,15 +264,17 @@ def calculate_loss(x, y, model_list):
             (1 - func_g(torch.mv(tensor_x, model))))).sum()
         validation_loss.append(float(log_l_theta))
 
-    min_loss = min(validation_loss)
+    min_loss = max(validation_loss)
     i = 0
+    min_i = 0
     min_model = model_list[0]
     for loss in validation_loss:
         if loss == min_loss:
+            min_i = i
             min_model = model_list[i]
         i += 1
 
-    return validation_loss, min_loss, min_model
+    return validation_loss, min_loss, min_model, min_i
 
 
 # input : model_list, which is the trained model, used to calculate the F1_measure list
@@ -309,10 +335,11 @@ def f1_measure(model_list, test_x, test_y):
 
 # input : a value list
 # output : a graph
-def draw_single_line(name, y, xlab, ylab, step):
+def draw_single_line(name, y, xlab, ylab, step, min_pos):
     plt.rcParams['font.sans-serif'] = ['SimHei']  # 用来正常显示中文标签
     axis_x = list(range(0, len(y), 1))
     plt.plot(axis_x, y, label=name)
+    plt.vlines([min_pos], 0, 1, linestyles='dashed', colors='red')
     plt.legend(loc="lower right")
     plt.xlabel(xlab)  # x轴坐标名称及字体样式
     plt.ylabel(ylab)  # y轴坐标名称及字体样式
@@ -322,12 +349,13 @@ def draw_single_line(name, y, xlab, ylab, step):
 
 # input : 2 value lists
 # output : a graph
-def draw_lines(name1, y1, name2, y2, name3, y3, xlab, ylab, step):
+def draw_lines(name1, y1, name2, y2, name3, y3, xlab, ylab, step, min_pos):
     axis_x = list(range(0, len(y1), 1))
     plt.rcParams['font.sans-serif'] = ['SimHei']  # 用来正常显示中文标签
     plt.plot(axis_x, y1, label=name1)
     plt.plot(axis_x, y2, label=name2)
     plt.plot(axis_x, y3, label=name3)
+    plt.vlines([min_pos], 0, 1, linestyles='dashed', colors='red')
     plt.legend(loc="lower right")
     plt.text(0, 1, "步长是" + str(step), fontsize=10)  # 在图中添加文本
     plt.xlabel(xlab)  # x轴坐标名称及字体样式
@@ -349,20 +377,21 @@ test_y1_list, test_y2_list = y_transform_to_tensor(TEST_Y_PATH)
 
 T1 = time.time()
 
-loss1_list1, model11 = batch_gradient_hand(train_x_list, train_y1_list, STEP, 2000)
-# loss1_list1, model11 = random_gradient_auto(train_x_list, train_y1_list, STEP, 60000, 100, True)
-# loss1_list1, model11 = batch_gradient_auto(train_x_list, train_y1_list, STEP, 6000, True)
+# loss1_list1, model11 = batch_gradient_hand(train_x_list, train_y1_list, STEP, 2000)
+# loss1_list1, model11 = random_gradient_hand(train_x_list, train_y1_list, STEP, 60000, 100)
+loss1_list1, model11 = batch_gradient_auto(train_x_list, train_y1_list, STEP, 2000, True)
 T2 = time.time()
 
 # recall, pre, f1m = f1_measure(model11, train_x_list, train_y1_list)
+loss_list, min_loss, min_model, pos = calculate_loss(test_x_list, test_y1_list, model11)
 recall, pre, f1m = f1_measure(model11, test_x_list, test_y1_list)
 
 print('使用张量优化运算运行时间:%s毫秒' % ((T2 - T1) * 1000))
 
-draw_lines("查全率", recall, "准确率", pre, "F1", f1m, "迭代次数", "比率(%)", STEP)
-draw_single_line("F1", f1m, "迭代次数", "比率(%)", STEP)
-draw_single_line("准确率", pre, "迭代次数", "比率(%)", STEP)
-draw_single_line("查全率", recall, "迭代次数", "比率(%)", STEP)
+draw_lines("查全率", recall, "准确率", pre, "F1", f1m, "迭代次数", "比率(%)", STEP, pos)
+draw_single_line("F1", f1m, "迭代次数", "比率(%)", STEP, pos)
+draw_single_line("准确率", pre, "迭代次数", "比率(%)", STEP, pos)
+draw_single_line("查全率", recall, "迭代次数", "比率(%)", STEP, pos)
 # T1 = time.time()
 #
 # loss1_list, model1 = batch_gradient_auto(train_x_list, train_y1_list, 1, 1000, False)
