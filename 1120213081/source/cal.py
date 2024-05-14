@@ -8,17 +8,21 @@ import matplotlib.pyplot as plt
 
 import time
 
+
+# import os
+
 TRAIN_Y_PATH = '../../../data/train.txt'
 TRAIN_X_PATH = './train_x.txt'
 VALID_Y_PATH = '../../../data/validation.txt'
 VALID_X_PATH = './valid_x.txt'
 TEST_Y_PATH = '../../../data/test.txt'
 TEST_X_PATH = './test_x.txt'
-STEP = 1 / 1000
+STEP = 1 / 500
 
 # 引入GPU
 GPU = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
+# 设置最大的分割量
+# os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
 
 # input: y向量的数据来源
 # output: y1和y2的两个张量,在CPU上
@@ -377,21 +381,21 @@ test_y1_list, test_y2_list = y_transform_to_tensor(TEST_Y_PATH)
 
 T1 = time.time()
 
-# loss1_list1, model11 = batch_gradient_hand(train_x_list, train_y1_list, STEP, 2000)
-# loss1_list1, model11 = random_gradient_hand(train_x_list, train_y1_list, STEP, 60000, 100)
-loss1_list1, model11 = batch_gradient_auto(train_x_list, train_y1_list, STEP, 2000, True)
+loss1_list1, model11 = batch_gradient_hand(train_x_list, train_y2_list, STEP, 2000)
+# loss1_list1, model11 = random_gradient_auto(train_x_list, train_y1_list, STEP, 30000, 1000, True)
+# loss1_list1, model11 = batch_gradient_auto(train_x_list, train_y1_list, STEP, 6000, True)
 T2 = time.time()
 
 # recall, pre, f1m = f1_measure(model11, train_x_list, train_y1_list)
-loss_list, min_loss, min_model, pos = calculate_loss(test_x_list, test_y1_list, model11)
-recall, pre, f1m = f1_measure(model11, test_x_list, test_y1_list)
+loss_list, min_loss, min_model, pos = calculate_loss(test_x_list, test_y2_list, model11)
+recall, pre, f1m = f1_measure(model11, test_x_list, test_y2_list)
 
 print('使用张量优化运算运行时间:%s毫秒' % ((T2 - T1) * 1000))
 
 draw_lines("查全率", recall, "准确率", pre, "F1", f1m, "迭代次数", "比率(%)", STEP, pos)
-draw_single_line("F1", f1m, "迭代次数", "比率(%)", STEP, pos)
-draw_single_line("准确率", pre, "迭代次数", "比率(%)", STEP, pos)
-draw_single_line("查全率", recall, "迭代次数", "比率(%)", STEP, pos)
+# draw_single_line("F1", f1m, "迭代次数", "比率(%)", STEP, pos)
+# draw_single_line("准确率", pre, "迭代次数", "比率(%)", STEP, pos)
+# draw_single_line("查全率", recall, "迭代次数", "比率(%)", STEP, pos)
 # T1 = time.time()
 #
 # loss1_list, model1 = batch_gradient_auto(train_x_list, train_y1_list, 1, 1000, False)
